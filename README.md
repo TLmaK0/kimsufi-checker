@@ -1,7 +1,11 @@
 # Checks Kimsufi servers availability
 
+## Install
 
-Usage: node check.js <seconds> <serverid> <serverid> ....
+```npm install```
+
+## Usage
+```node check.js [seconds] [serverid] [serverid] ....```
 
 Check every 10 seconds for servers 1801sk13 and 1801sk12
 
