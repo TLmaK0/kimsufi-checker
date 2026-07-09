@@ -217,6 +217,7 @@ async function call() {
     console.log(`\n[${new Date().toISOString()}] AVAILABLE:`);
     for (const h of newHits) {
       console.log(`  ${modelOf(h)} (${h.server}) [${h.planCode}] -> ${h.datacenter} (${h.availability})`);
+      console.log(`    Order: ${orderUrl(h)}`);
     }
 
     const lines = newHits
