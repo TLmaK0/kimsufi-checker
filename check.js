@@ -3,6 +3,8 @@ import open from 'open';
 const API_URL = 'https://eu.api.ovh.com/v1/dedicated/server/datacenter/availabilities';
 const CATALOG_URL = 'https://eu.api.ovh.com/v1/order/catalog/public/eco?ovhSubsidiary=FR';
 
+const modelNames = {}; // server code / planCode -> commercial model name (e.g. "KS-5")
+
 // --- parse arguments ---------------------------------------------------------
 // Usage: node check.js <seconds> <serverId...> [--zones=fra,rbx] [--open]
 const raw = process.argv.slice(2);
@@ -83,8 +85,6 @@ async function sendTelegram(text) {
 }
 
 // --- server list -------------------------------------------------------------
-const modelNames = {}; // server code / planCode -> commercial model name (e.g. "KS-5")
-
 function humanRam(m) {
   const mo = /ram-(\d+)g/.exec(m || '');
   return mo ? `${mo[1]} GB ECC` : (m || '?');
@@ -181,15 +181,16 @@ async function listServers() {
   console.log('\nKimsufi servers (live prices & availability):\n');
   console.log(
     pad('CODE', 13) + pad('MODEL', 9) + pad('€/mo', 9) + pad('CPU', 18) +
-      pad('RAM', 11) + pad('DISK', 27) + 'AVAILABLE NOW',
+      pad('CORES', 9) + pad('RAM', 11) + pad('DISK', 27) + 'AVAILABLE NOW',
   );
   for (const e of rows) {
     const i = e.info;
     const price = i.price != null ? `€${i.price.toFixed(2)}` : '?';
+    const cores = `${i.cpu.cores ?? '?'}c/${i.cpu.threads ?? '?'}t`;
     const zones = e.zones.size ? [...e.zones].sort().join(', ') : '—';
     console.log(
       pad(e.code, 13) + pad(i.name, 9) + pad(price, 9) + pad(i.cpu.model || '?', 18) +
-        pad(humanRam(e.ram), 11) + pad(humanDisk(e.disk), 27) + zones,
+        pad(cores, 9) + pad(humanRam(e.ram), 11) + pad(humanDisk(e.disk), 27) + zones,
     );
   }
   console.log('');
