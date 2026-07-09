@@ -4,12 +4,43 @@
 
 ```npm install```
 
+Requires Node.js 18 or newer (uses the built-in `fetch`).
+
 ## Usage
-```node check.js [seconds] [serverid] [serverid] ....```
+```node check.js <seconds> <serverId...> [--zones=fra,rbx] [--open]```
 
-Check every 10 seconds for servers 1801sk13 and 1801sk12
+Watch several servers, only in the given datacenters, every 60 seconds:
 
-```node check.js 10 1801sk13 1801sk12```
+```node check.js 60 25skb01 25skc01 --zones=fra,rbx,gra```
+
+- `<serverId>` — one or more servers. Matches either the `server` model
+  (e.g. `24sk10`) or the `planCode` (e.g. `24sk102`) returned by the OVH
+  availability API
+  (`https://eu.api.ovh.com/v1/dedicated/server/datacenter/availabilities`).
+- `--zones=...` — comma-separated datacenters to watch (e.g. `fra,rbx,gra,sbg,bhs`).
+  If omitted, all datacenters are watched.
+- `--open` — also open the order page in the browser on a new hit.
+
+The script keeps running and, each time a watched server becomes available
+in a watched zone, it rings the terminal bell, prints the hit, and (if
+configured) sends a Telegram alert. It only alerts once per availability;
+if the server goes out of stock and comes back, it alerts again.
+
+### Telegram alerts (optional)
+
+Set these environment variables to receive alerts on Telegram:
+
+```
+export TELEGRAM_BOT_TOKEN=123456:AA...   # from @BotFather
+export TELEGRAM_CHAT_ID=987654321        # your chat id (ask @userinfobot)
+```
+
+Then run as usual. If they are not set, the script still works and just
+prints to the terminal.
+
+To leave it running in the background and log its output:
+
+```node check.js 60 25skb01 25skc01 --zones=fra,rbx > checker.log 2>&1 &```
 
 Copyright 2019 Hugo Freire
 

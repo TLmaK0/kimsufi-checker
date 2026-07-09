@@ -1,7 +1,13 @@
 {
+  "name": "kimsufi-checker",
+  "version": "2.0.0",
+  "description": "Checks Kimsufi/OVH dedicated server availability",
+  "main": "check.js",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
-    "lodash": "^4.17.11",
-    "opn": "^5.4.0",
-    "request": "^2.88.0"
+    "open": "^10.1.0"
   }
 }
