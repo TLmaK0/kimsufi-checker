@@ -10,7 +10,7 @@ import {
   humanDisk,
   buildCatalogInfo,
   resolveName,
-} from './kimsufi-core.js?v=4';
+} from './kimsufi-core.js?v=5';
 
 // Datacenter -> { label, continent }. Unknown codes fall back to "Other".
 const DC_INFO = {
@@ -290,7 +290,8 @@ async function poll() {
     if (!name || !state.selectedModels.has(name)) continue;
     for (const dc of item.datacenters) {
       if (dc.availability === 'unavailable') continue;
-      if (!state.selectedZones.has(dc.datacenter)) continue;
+      // no zone selected = watch every zone
+      if (state.selectedZones.size && !state.selectedZones.has(dc.datacenter)) continue;
       const key = `${item.planCode}|${dc.datacenter}`;
       if (currentKeys.has(key)) continue;
       currentKeys.add(key);
@@ -318,7 +319,7 @@ function updateStatus(error) {
     return;
   }
   el.innerHTML = `
-    <span><span class="dot"></span>Watching <strong>${state.selectedModels.size}</strong> model(s) in <strong>${state.selectedZones.size}</strong> zone(s)</span>
+    <span><span class="dot"></span>Watching <strong>${state.selectedModels.size}</strong> model(s) in <strong>${state.selectedZones.size || 'all'}</strong> zone(s)</span>
     <span>Checks: <strong>${state.requests}</strong></span>
     <span>Last check: <strong>${time}</strong></span>`;
 }
@@ -326,7 +327,6 @@ function updateStatus(error) {
 // ---- start / stop -----------------------------------------------------------
 async function start() {
   if (!state.selectedModels.size) { alert('Select at least one server model.'); return; }
-  if (!state.selectedZones.size) { alert('Select at least one datacenter.'); return; }
 
   if ($('notify').checked && Notification.permission === 'default') {
     try { await Notification.requestPermission(); } catch { /* ignore */ }
@@ -393,7 +393,7 @@ $('zones-none').addEventListener('click', () => {
 loadData()
   .then(() => {
     // resume watching automatically after a page refresh
-    if (state.wasRunning && state.selectedModels.size && state.selectedZones.size) start();
+    if (state.wasRunning && state.selectedModels.size) start();
   })
   .catch((err) => {
     $('models').innerHTML = `<p class="empty">Failed to load data: ${err.message}</p>`;
