@@ -10,7 +10,7 @@ import {
   humanDisk,
   buildCatalogInfo,
   resolveName,
-} from './kimsufi-core.js?v=5';
+} from './kimsufi-core.js?v=6';
 
 // Datacenter -> { label, continent }. Unknown codes fall back to "Other".
 const DC_INFO = {
@@ -47,6 +47,7 @@ const state = {
   timer: null,
   requests: 0,
   running: false,
+  telegram: { token: '', chatId: '', bot: '', enabled: false },
 };
 
 // ---- persistence ------------------------------------------------------------
@@ -61,6 +62,7 @@ function saveState() {
       models: [...state.selectedModels],
       zones: [...state.selectedZones],
       running: state.running,
+      telegram: state.telegram,
     }),
   );
 }
@@ -74,6 +76,9 @@ function loadState() {
     if (Array.isArray(s.models)) state.selectedModels = new Set(s.models);
     if (Array.isArray(s.zones)) state.selectedZones = new Set(s.zones);
     state.wasRunning = s.running === true; // resume watching after a refresh
+    if (s.telegram && typeof s.telegram === 'object') {
+      state.telegram = { token: '', chatId: '', bot: '', enabled: false, ...s.telegram };
+    }
   } catch { /* ignore */ }
 }
 
@@ -271,6 +276,180 @@ function notify(hit) {
   n.onclick = () => window.open(orderUrl(hit.name), '_blank');
 }
 
+// ---- telegram ---------------------------------------------------------------
+async function tgCall(token, method, params = {}) {
+  const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!data.ok) throw new Error(data.description || `HTTP ${res.status}`);
+  return data.result;
+}
+
+// Find the user's chat id from recent updates (after they press Start / message the bot).
+function chatIdFromUpdates(updates) {
+  for (let i = updates.length - 1; i >= 0; i--) {
+    const u = updates[i];
+    const chat = u.message?.chat || u.edited_message?.chat || u.my_chat_member?.chat;
+    if (chat?.id) return { id: String(chat.id), name: chat.first_name || chat.title || String(chat.id) };
+  }
+  return null;
+}
+
+async function sendTelegramHits(hits) {
+  const t = state.telegram;
+  if (!(t.enabled && t.token && t.chatId)) return;
+  const lines = hits
+    .map(
+      (h) =>
+        `• <b>${h.name}</b> (${h.server}) → ${dcLabel(h.dc)} (${h.availability}) — <a href="${orderUrl(h.name)}">order</a>`,
+    )
+    .join('\n');
+  try {
+    await tgCall(t.token, 'sendMessage', {
+      chat_id: t.chatId,
+      text: `🚨 <b>Kimsufi available</b>\n${lines}`,
+      parse_mode: 'HTML',
+    });
+  } catch (err) {
+    console.error('Telegram send failed:', err.message);
+  }
+}
+
+// --- wizard UI ---
+const tgMsg = (id, text, kind) => {
+  const el = $(id);
+  el.textContent = text || '';
+  el.className = `tg-msg${kind ? ' ' + kind : ''}`;
+};
+
+function showTgStep(step) {
+  document.querySelectorAll('#tg-modal .tg-step').forEach((el) => {
+    el.hidden = el.dataset.step !== String(step);
+  });
+}
+function openTgModal() {
+  const t = state.telegram;
+  ['tg-msg-1', 'tg-msg-2', 'tg-msg-3', 'tg-msg-manage'].forEach((id) => tgMsg(id));
+  $('tg-finish').hidden = true;
+  if (t.token && t.chatId) {
+    $('tg-manage-info').textContent = t.chatName || t.chatId;
+    $('tg-manage-bot').textContent = t.bot ? '@' + t.bot : 'your bot';
+    showTgStep('manage');
+  } else {
+    $('tg-token').value = t.token || '';
+    showTgStep(1);
+  }
+  $('tg-modal').hidden = false;
+}
+function closeTgModal() {
+  $('tg-modal').hidden = true;
+}
+
+function updateTgUI() {
+  const t = state.telegram;
+  const configured = Boolean(t.token && t.chatId);
+  $('tg-enabled').disabled = !configured;
+  $('tg-enabled').checked = configured && t.enabled;
+  $('tg-btn').textContent = configured ? 'manage' : 'set up…';
+}
+
+function wireTelegram() {
+  $('tg-btn').addEventListener('click', openTgModal);
+  $('tg-close').addEventListener('click', closeTgModal);
+  $('tg-modal').addEventListener('click', (e) => { if (e.target.id === 'tg-modal') closeTgModal(); });
+
+  // Step 1 → validate token
+  $('tg-step1-next').addEventListener('click', async () => {
+    const token = $('tg-token').value.trim();
+    if (!token) { tgMsg('tg-msg-1', 'Paste the token from BotFather first.', 'err'); return; }
+    tgMsg('tg-msg-1', 'Checking…');
+    try {
+      const me = await tgCall(token, 'getMe');
+      state.telegram.token = token;
+      state.telegram.bot = me.username;
+      $('tg-botname').textContent = '@' + me.username;
+      $('tg-openbot').href = `https://t.me/${me.username}`;
+      tgMsg('tg-msg-1');
+      showTgStep(2);
+    } catch (err) {
+      tgMsg('tg-msg-1', `That token doesn't work (${err.message}). Copy the whole token from BotFather.`, 'err');
+    }
+  });
+
+  $('tg-back-1').addEventListener('click', () => showTgStep(1));
+
+  // Step 2 → detect chat id
+  $('tg-detect').addEventListener('click', async () => {
+    tgMsg('tg-msg-2', 'Looking for your chat…');
+    try {
+      const updates = await tgCall(state.telegram.token, 'getUpdates', {});
+      const chat = chatIdFromUpdates(updates);
+      if (!chat) {
+        tgMsg('tg-msg-2', "Couldn't find a message yet. Open the bot, press Start (or send it any text), then tap again.", 'err');
+        return;
+      }
+      state.telegram.chatId = chat.id;
+      state.telegram.chatName = chat.name;
+      $('tg-chatinfo').textContent = chat.name;
+      tgMsg('tg-msg-2');
+      showTgStep(3);
+    } catch (err) {
+      tgMsg('tg-msg-2', `Error: ${err.message}`, 'err');
+    }
+  });
+
+  // Step 3 → send test
+  $('tg-test').addEventListener('click', async () => {
+    tgMsg('tg-msg-3', 'Sending…');
+    try {
+      await tgCall(state.telegram.token, 'sendMessage', {
+        chat_id: state.telegram.chatId,
+        text: '✅ <b>Kimsufi Checker</b> is connected. You will get alerts here.',
+        parse_mode: 'HTML',
+      });
+      tgMsg('tg-msg-3', 'Sent! Check your Telegram — you should have a message.', 'ok');
+      $('tg-finish').hidden = false;
+    } catch (err) {
+      tgMsg('tg-msg-3', `Failed to send: ${err.message}`, 'err');
+    }
+  });
+
+  $('tg-finish').addEventListener('click', () => {
+    state.telegram.enabled = true;
+    saveState();
+    updateTgUI();
+    closeTgModal();
+  });
+
+  // Manage panel
+  $('tg-manage-test').addEventListener('click', async () => {
+    tgMsg('tg-msg-manage', 'Sending…');
+    try {
+      await tgCall(state.telegram.token, 'sendMessage', {
+        chat_id: state.telegram.chatId,
+        text: '✅ Test from Kimsufi Checker.',
+      });
+      tgMsg('tg-msg-manage', 'Sent!', 'ok');
+    } catch (err) {
+      tgMsg('tg-msg-manage', `Failed: ${err.message}`, 'err');
+    }
+  });
+  $('tg-disconnect').addEventListener('click', () => {
+    state.telegram = { token: '', chatId: '', bot: '', enabled: false };
+    saveState();
+    updateTgUI();
+    closeTgModal();
+  });
+
+  $('tg-enabled').addEventListener('change', (e) => {
+    state.telegram.enabled = e.target.checked;
+    saveState();
+  });
+}
+
 // ---- polling ----------------------------------------------------------------
 async function poll() {
   state.requests++;
@@ -306,6 +485,7 @@ async function poll() {
   if (newHits.length) {
     beep();
     newHits.forEach(notify);
+    sendTelegramHits(newHits);
   }
   updateStatus();
 }
@@ -358,6 +538,8 @@ function stop() {
 
 // ---- wire up ----------------------------------------------------------------
 loadState();
+wireTelegram();
+updateTgUI();
 $('start').addEventListener('click', start);
 $('stop').addEventListener('click', stop);
 $('country').addEventListener('change', () => { saveState(); loadData(); });

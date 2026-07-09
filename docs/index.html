@@ -6,7 +6,7 @@
   <title>Kimsufi Checker — cheap OVH dedicated server availability</title>
   <meta name="description" content="Watch Kimsufi / OVH dedicated server availability live in your browser. Pick models and datacenters by continent and get notified the moment one is in stock.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖥️</text></svg>">
-  <link rel="stylesheet" href="./style.css?v=5">
+  <link rel="stylesheet" href="./style.css?v=6">
 </head>
 <body>
   <header>
@@ -43,6 +43,8 @@
       <div class="control toggles">
         <label><input type="checkbox" id="sound" checked> Sound</label>
         <label><input type="checkbox" id="notify"> Desktop notifications</label>
+        <label><input type="checkbox" id="tg-enabled" disabled> Telegram</label>
+        <button id="tg-btn" class="link">set up…</button>
       </div>
       <div class="control actions">
         <button id="start" class="primary">Start watching</button>
@@ -84,6 +86,68 @@
     </div>
   </main>
 
+  <!-- Telegram setup wizard -->
+  <div id="tg-modal" class="modal" hidden>
+    <div class="modal-card">
+      <button class="modal-close" id="tg-close" aria-label="Close">×</button>
+      <h2>Telegram alerts</h2>
+      <p class="hint">Get a message on your phone the moment a server is in stock. You'll
+      use your own free Telegram bot — takes about a minute. Alerts are sent while this
+      tab stays open.</p>
+
+      <!-- Step 1: create bot -->
+      <div class="tg-step" data-step="1" hidden>
+        <p class="step-label">Step 1 of 3 · Create your bot</p>
+        <ol>
+          <li>Open <b>BotFather</b> (the official Telegram bot).</li>
+          <li>Send <code>/newbot</code> and follow the prompts — any name works.</li>
+          <li>It replies with a <b>token</b> like <code>123456:ABC-def…</code>. Copy it.</li>
+        </ol>
+        <a class="btn-tg" href="https://t.me/BotFather" target="_blank" rel="noopener">Open BotFather ↗</a>
+        <input id="tg-token" type="text" placeholder="Paste your bot token here" autocomplete="off" spellcheck="false">
+        <div class="tg-msg" id="tg-msg-1"></div>
+        <div class="modal-actions">
+          <button id="tg-step1-next" class="primary">Continue</button>
+        </div>
+      </div>
+
+      <!-- Step 2: connect chat -->
+      <div class="tg-step" data-step="2" hidden>
+        <p class="step-label">Step 2 of 3 · Connect your chat</p>
+        <p>Bot <b id="tg-botname"></b> is valid ✓. Now open it and press <b>Start</b> so it
+        can message you. Then come back and tap the button below.</p>
+        <a class="btn-tg" id="tg-openbot" href="#" target="_blank" rel="noopener">Open my bot ↗</a>
+        <div class="tg-msg" id="tg-msg-2"></div>
+        <div class="modal-actions">
+          <button id="tg-back-1" class="ghost">Back</button>
+          <button id="tg-detect" class="primary">I pressed Start — connect me</button>
+        </div>
+      </div>
+
+      <!-- Step 3: test -->
+      <div class="tg-step" data-step="3" hidden>
+        <p class="step-label">Step 3 of 3 · Test it</p>
+        <p>Connected as <b id="tg-chatinfo"></b>. Let's send a test message to make sure it works.</p>
+        <div class="tg-msg" id="tg-msg-3"></div>
+        <div class="modal-actions">
+          <button id="tg-test" class="primary">Send test message</button>
+          <button id="tg-finish" class="ok" hidden>Done ✓</button>
+        </div>
+      </div>
+
+      <!-- Manage (already connected) -->
+      <div class="tg-step" data-step="manage" hidden>
+        <p class="step-label">Connected</p>
+        <p>Alerts go to <b id="tg-manage-info"></b> via <b id="tg-manage-bot"></b>.</p>
+        <div class="tg-msg" id="tg-msg-manage"></div>
+        <div class="modal-actions">
+          <button id="tg-disconnect" class="ghost danger">Disconnect</button>
+          <button id="tg-manage-test" class="primary">Send test</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <footer>
     <p>
       Data from the public
@@ -93,6 +157,6 @@
     </p>
   </footer>
 
-  <script type="module" src="./app.js?v=5"></script>
+  <script type="module" src="./app.js?v=6"></script>
 </body>
 </html>

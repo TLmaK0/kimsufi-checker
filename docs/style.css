@@ -221,3 +221,57 @@ footer a { color: var(--accent-2); }
   .control.actions { margin-left: 0; width: 100%; }
   .control.actions button { flex: 1; }
 }
+
+/* --- Telegram setup modal --- */
+.modal {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(0, 0, 0, .6);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.modal[hidden] { display: none; }
+.modal-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  max-width: 520px; width: 100%;
+  padding: 24px;
+  position: relative;
+  max-height: 90vh; overflow-y: auto;
+}
+.modal-card h2 { margin: 0 0 4px; }
+.modal-close {
+  position: absolute; top: 8px; right: 10px;
+  background: none; border: none; color: var(--muted);
+  font-size: 1.5rem; line-height: 1; padding: 4px 8px;
+}
+.modal-close:hover { color: var(--text); background: none; }
+.step-label {
+  color: var(--accent-2); font-size: .78rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .05em; margin: 18px 0 8px;
+}
+.modal-card ol { padding-left: 20px; margin: 8px 0 14px; }
+.modal-card ol li { margin: 4px 0; }
+.modal-card code {
+  background: var(--card-2); padding: 1px 6px; border-radius: 5px; font-size: .85em;
+}
+.btn-tg {
+  display: inline-block; background: #229ED9; color: #fff;
+  text-decoration: none; padding: 9px 16px; border-radius: 8px;
+  font-weight: 600; margin: 4px 0 14px;
+}
+.btn-tg:hover { filter: brightness(1.08); }
+#tg-token {
+  width: 100%; padding: 10px 12px;
+  background: var(--card-2); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text); font-size: .95rem;
+}
+.tg-msg { min-height: 18px; font-size: .88rem; margin: 10px 0 0; }
+.tg-msg.err { color: var(--danger); }
+.tg-msg.ok { color: var(--ok); }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+button.ghost { background: transparent; }
+button.ghost.danger { border-color: var(--danger); color: var(--danger); }
+button.ghost.danger:hover { background: rgba(255, 92, 92, .12); }
+button.ok { background: var(--ok); border-color: var(--ok); color: #06210f; font-weight: 700; }
+button.ok:hover { filter: brightness(1.08); }
