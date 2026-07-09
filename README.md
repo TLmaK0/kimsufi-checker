@@ -1,5 +1,34 @@
 # Checks Kimsufi servers availability
 
+Kimsufi (by OVHcloud) offers cheap dedicated servers starting at **€9.99/month**.
+They sell out fast, so this tool polls the OVH availability API and alerts you
+(terminal bell + optional Telegram) the moment a server you want is back in stock.
+
+## Kimsufi servers & prices
+
+Snapshot of the current Kimsufi line-up, sorted by price (EUR/month, France
+subsidiary; taken from the OVH public catalog on 2026-07-09). Prices and specs
+change over time — the script always checks live availability regardless.
+
+| Model | Price/mo | CPU | Cores/Threads | Freq (base/turbo) | RAM | Storage |
+|---|---|---|---|---|---|---|
+| **KS-B** | €9.99 | Xeon E5-1620v2 | 4c/8t | 3.7/3.9 GHz | 32 GB ECC | 1×120 GB SSD |
+| **KS-C** | €11.99 | Xeon E5-1650v2 | 6c/12t | 3.5/3.9 GHz | 32 GB ECC | 1×120 GB SSD |
+| **KS-1** | €16.99 | Xeon-D 1520 | 4c/8t | 2.2/2.6 GHz | 32 GB ECC | 2×2 TB HDD |
+| **KS-4** | €16.99 | Xeon-E3 1230v6 | 4c/8t | 3.5/3.9 GHz | 16 GB ECC | 2×2 TB HDD |
+| **KS-5** | €17.99 | Xeon-E3 1270v6 | 4c/8t | 3.8/4.2 GHz | 32 GB ECC | 2×2 TB HDD |
+| **KS-2** | €18.99 | Xeon-D 1540 | 8c/16t | 2.0/2.6 GHz | 32 GB ECC | 2×2 TB HDD |
+| **KS-3** | €18.99 | Xeon-E3 1245v5 | 4c/8t | 3.5/3.9 GHz | 32 GB ECC | 2×2 TB HDD |
+| **KS-1-B** | €19.99 | Xeon D-2123IT | 4c/8t | 2.2/3.0 GHz | 32 GB ECC | 2×4 TB HDD |
+| **KS-5-B** | €21.99 | Xeon E5-1650v4 | 6c/12t | 3.6/4.0 GHz | 128 GB ECC | 2×2 TB HDD |
+| **KS-STOR** | €23.99 | Xeon-D 1521 | 4c/8t | 2.4/2.7 GHz | 16 GB ECC | 4×4 TB HDD + 1×500 GB NVMe |
+| **KS-5-A** | €26.99 | Xeon E-2274G | 4c/8t | 4.0/4.9 GHz | 32 GB ECC | 2×2 TB NVMe |
+| **KS-GAME** | €28.99 | Core i7-7700K | 4c/8t | 4.2/4.5 GHz | 32 GB ECC | 2×450 GB NVMe + 1×4 TB HDD |
+| **KS-6** | €38.99 | EPYC 7351P | 16c/32t | 2.4/2.9 GHz | 128 GB ECC | 2×1 TB NVMe |
+| **KS-6-B** | €54.99 | Xeon E5-2680v3 | 12c/24t | 2.5/3.3 GHz | 256 GB ECC | 2×480 GB SSD |
+| **KS-A** | €54.99 | Core i7-6700K | 4c/8t | 4.0/4.2 GHz | 32 GB ECC | 1×480 GB SSD |
+| **KS-7** | €61.99 | EPYC 7451 | 24c/48t | 2.3/3.2 GHz | 128 GB ECC | 2×4 TB HDD |
+
 ## Install
 
 ```npm install```
