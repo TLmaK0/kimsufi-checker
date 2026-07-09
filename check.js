@@ -245,6 +245,7 @@ async function call() {
 
   if (newHits.length > 0) {
     const modelOf = (h) => modelNames[h.server] || modelNames[h.planCode] || h.server;
+    const orderUrl = (h) => `https://eco.ovhcloud.com/en/kimsufi/${modelOf(h).toLowerCase()}/`;
     process.stdout.write('\x07'); // terminal bell
     console.log(`\n[${new Date().toISOString()}] AVAILABLE:`);
     for (const h of newHits) {
@@ -254,16 +255,13 @@ async function call() {
     const lines = newHits
       .map(
         (h) =>
-          `• <b>${modelOf(h)}</b> (${h.server}) → ${h.datacenter} (${h.availability})`,
+          `• <b>${modelOf(h)}</b> (${h.server}) → ${h.datacenter} (${h.availability}) — <a href="${orderUrl(h)}">order</a>`,
       )
       .join('\n');
-    const orderUrl = `https://www.kimsufi.com/en/order/kimsufi.xml?reference=${newHits[0].planCode}`;
-    await sendTelegram(
-      `🚨 <b>Kimsufi available</b>\n${lines}\n\n<a href="${orderUrl}">Order now</a>`,
-    );
+    await sendTelegram(`🚨 <b>Kimsufi available</b>\n${lines}`);
 
     if (doOpen) {
-      await open(orderUrl);
+      await open(orderUrl(newHits[0]));
     }
   } else {
     process.stdout.write(`Requests: ${requests}. Nothing available. Waiting ${time}s...\r`);

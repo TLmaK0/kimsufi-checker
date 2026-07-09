@@ -23,7 +23,7 @@ const DC_INFO = {
   ynm: { label: 'Mumbai, IN', continent: 'Asia-Pacific' },
 };
 const CONTINENT_ORDER = ['Europe', 'North America', 'Asia-Pacific', 'Other'];
-const KIMSUFI_PATH = { FR: 'fr', ES: 'es', IE: 'en', DE: 'de', IT: 'it', PL: 'pl', GB: 'en' };
+const ECO_PATH = { FR: 'fr', ES: 'es', IE: 'en', DE: 'de', IT: 'it', PL: 'pl', GB: 'en' };
 
 const $ = (id) => document.getElementById(id);
 
@@ -108,8 +108,8 @@ function resolveName(planCode) {
   }
   return null;
 }
-const orderUrl = (planCode) =>
-  `https://www.kimsufi.com/${KIMSUFI_PATH[state.country] || 'en'}/order/kimsufi.xml?reference=${planCode}`;
+const orderUrl = (name) =>
+  `https://eco.ovhcloud.com/${ECO_PATH[state.country] || 'en'}/kimsufi/${name.toLowerCase()}/`;
 
 // ---- data loading -----------------------------------------------------------
 async function loadData() {
@@ -265,7 +265,7 @@ function renderResults(hits) {
         <span class="meta">${h.server}</span>
         <span class="where">→ ${dcLabel(h.dc)}</span>
         <span class="meta">${fmtPrice(state.priceByName[h.name])}/mo · ${h.availability}</span>
-        <a class="order" href="${orderUrl(h.planCode)}" target="_blank" rel="noopener">Order</a>
+        <a class="order" href="${orderUrl(h.name)}" target="_blank" rel="noopener">Order</a>
       </div>`,
     )
     .join('');
@@ -298,7 +298,7 @@ function notify(hit) {
     body: `${dcLabel(hit.dc)} · ${fmtPrice(state.priceByName[hit.name])}/mo`,
     tag: `${hit.planCode}|${hit.dc}`,
   });
-  n.onclick = () => window.open(orderUrl(hit.planCode), '_blank');
+  n.onclick = () => window.open(orderUrl(hit.name), '_blank');
 }
 
 // ---- polling ----------------------------------------------------------------
