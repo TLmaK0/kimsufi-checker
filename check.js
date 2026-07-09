@@ -251,7 +251,7 @@ async function call() {
       .join('\n');
     const orderUrl = `https://www.kimsufi.com/en/order/kimsufi.xml?reference=${newHits[0].planCode}`;
     await sendTelegram(
-      `🚨 <b>Kimsufi disponible</b>\n${lines}\n\n<a href="${orderUrl}">Pedir ahora</a>`,
+      `🚨 <b>Kimsufi available</b>\n${lines}\n\n<a href="${orderUrl}">Order now</a>`,
     );
 
     if (doOpen) {
