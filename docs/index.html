@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kimsufi Checker — cheap OVH dedicated server availability</title>
+  <meta name="description" content="Watch Kimsufi / OVH dedicated server availability live in your browser. Pick models and datacenters by continent and get notified the moment one is in stock.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖥️</text></svg>">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <header>
+    <h1>🖥️ Kimsufi Checker</h1>
+    <p class="tagline">
+      Watch cheap OVH / Kimsufi dedicated servers and get alerted the moment one is in stock.
+      Runs entirely in your browser — no server, no account.
+    </p>
+  </header>
+
+  <main>
+    <section class="controls card">
+      <div class="control">
+        <label for="country">Pricing region</label>
+        <select id="country">
+          <option value="FR">France (EUR)</option>
+          <option value="ES">Spain (EUR)</option>
+          <option value="IE">Ireland (EUR)</option>
+          <option value="DE">Germany (EUR)</option>
+          <option value="IT">Italy (EUR)</option>
+          <option value="PL">Poland (PLN)</option>
+          <option value="GB">United Kingdom (GBP)</option>
+        </select>
+      </div>
+      <div class="control">
+        <label for="interval">Check every</label>
+        <select id="interval">
+          <option value="30">30 seconds</option>
+          <option value="60" selected>60 seconds</option>
+          <option value="120">2 minutes</option>
+          <option value="300">5 minutes</option>
+        </select>
+      </div>
+      <div class="control toggles">
+        <label><input type="checkbox" id="sound" checked> Sound</label>
+        <label><input type="checkbox" id="notify"> Desktop notifications</label>
+      </div>
+      <div class="control actions">
+        <button id="start" class="primary">Start watching</button>
+        <button id="stop" class="danger" disabled>Stop</button>
+      </div>
+    </section>
+
+    <section id="status" class="status card" hidden></section>
+
+    <section id="results" class="results" hidden>
+      <h2>Available now</h2>
+      <div id="results-list"></div>
+    </section>
+
+    <div class="grid">
+      <section class="card">
+        <div class="section-head">
+          <h2>Servers</h2>
+          <div class="mini-actions">
+            <button id="models-all" class="link">select all</button>
+            <button id="models-none" class="link">clear</button>
+          </div>
+        </div>
+        <p class="hint">Pick the models you want to watch. Prices update with the region above.</p>
+        <div id="models" class="models">Loading…</div>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <h2>Datacenters</h2>
+          <div class="mini-actions">
+            <button id="zones-all" class="link">select all</button>
+            <button id="zones-none" class="link">clear</button>
+          </div>
+        </div>
+        <p class="hint">Choose where to look, grouped by continent.</p>
+        <div id="zones" class="zones">Loading…</div>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    <p>
+      Data from the public
+      <a href="https://eu.api.ovh.com/console/#/dedicated/server/datacenter/availabilities~GET" target="_blank" rel="noopener">OVH availability API</a>.
+      Not affiliated with OVHcloud / Kimsufi. Prices and specs may change.
+      <a href="https://github.com/TLmaK0/kimsufi-checker" target="_blank" rel="noopener">Source on GitHub</a>.
+    </p>
+  </footer>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
