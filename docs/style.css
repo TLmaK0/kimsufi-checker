@@ -173,6 +173,17 @@ button.link:hover { text-decoration: underline; background: none; }
 }
 .badge.in { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); }
 .badge.out { background: #241a1a; color: #c98; border: 1px solid #4a3a3a; }
+.order-inline {
+  margin-left: 8px;
+  color: #06210f;
+  background: var(--ok);
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 6px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.order-inline:hover { filter: brightness(1.08); }
 
 /* zones */
 .zones { display: flex; flex-direction: column; gap: 16px; }

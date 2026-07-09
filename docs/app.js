@@ -185,7 +185,8 @@ function renderModels() {
     row.className = 'model-row';
     const inNow = m.zonesNow.size > 0;
     const availText = inNow
-      ? `<span class="badge in">in stock</span> ${[...m.zonesNow].map(dcLabel).join(', ')}`
+      ? `<span class="badge in">in stock</span> ${[...m.zonesNow].map(dcLabel).join(', ')}
+         <a class="order-inline" href="${orderUrl(m.name)}" target="_blank" rel="noopener">Order →</a>`
       : '<span class="badge out">out of stock</span>';
     row.innerHTML = `
       <input type="checkbox" value="${m.name}" ${state.selectedModels.has(m.name) ? 'checked' : ''}>
@@ -200,6 +201,8 @@ function renderModels() {
       else state.selectedModels.delete(m.name);
       saveState();
     });
+    // clicking the inline order link must not toggle the row checkbox
+    row.querySelector('.order-inline')?.addEventListener('click', (e) => e.stopPropagation());
     el.appendChild(row);
   }
 }
