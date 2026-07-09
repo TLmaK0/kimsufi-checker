@@ -1,7 +1,15 @@
 import open from 'open';
-
-const API_URL = 'https://eu.api.ovh.com/v1/dedicated/server/datacenter/availabilities';
-const CATALOG_URL = 'https://eu.api.ovh.com/v1/order/catalog/public/eco?ovhSubsidiary=FR';
+// Parsing/formatting logic is shared with the web app; it lives under docs/ so
+// the browser (GitHub Pages serves only that folder) can import it too.
+import {
+  AVAIL_URL,
+  catalogUrl,
+  fetchJson,
+  humanRam,
+  humanDisk,
+  buildCatalogInfo,
+  resolveName,
+} from './docs/kimsufi-core.js';
 
 const modelNames = {}; // server code / planCode -> commercial model name (e.g. "KS-5")
 
@@ -85,67 +93,29 @@ async function sendTelegram(text) {
 }
 
 // --- server list -------------------------------------------------------------
-function humanRam(m) {
-  const mo = /ram-(\d+)g/.exec(m || '');
-  return mo ? `${mo[1]} GB ECC` : (m || '?');
-}
-
-function humanDiskSeg(seg) {
-  const mo = /(\d+)x(\d+)(ssd|sa|nvme|hdd)?/.exec(seg);
-  if (!mo) return seg;
-  const [, n, sizeStr, typ] = mo;
-  const size = Number(sizeStr);
-  const unit = size < 1000 ? 'GB' : 'TB';
-  const disp = size < 1000 ? size : Math.round(size / 1000);
-  const typeMap = { ssd: 'SSD', sa: 'HDD', nvme: 'NVMe', hdd: 'HDD' };
-  return `${n}×${disp} ${unit} ${typeMap[typ] || ''}`.trim();
-}
-
-function humanDisk(s) {
-  s = s || '';
-  let m = /^(?:no|soft|hard)raid-(.+)$/.exec(s);
-  if (m) return humanDiskSeg(m[1]);
-  m = /^hybridsoftraid-(.+)$/.exec(s);
-  if (m) return m[1].split('-').map(humanDiskSeg).join(' + ');
-  return s || '?';
-}
-
 async function listServers() {
   let cat;
   let avail;
   try {
-    [cat, avail] = await Promise.all([
-      fetch(CATALOG_URL, { headers: { Accept: 'application/json' } }).then((r) => r.json()),
-      fetch(API_URL, { headers: { Accept: 'application/json' } }).then((r) => r.json()),
-    ]);
+    [cat, avail] = await Promise.all([fetchJson(catalogUrl('FR')), fetchJson(AVAIL_URL)]);
   } catch (err) {
     console.error(`Could not load server list: ${err.message}`);
     return;
   }
 
-  const products = Object.fromEntries((cat.products || []).map((p) => [p.name, p]));
-  const info = {}; // planCode -> { price, name, cpu }
-  for (const plan of cat.plans || []) {
-    const srv = products[plan.product]?.blobs?.technical?.server;
-    if (!srv || srv.range !== 'kimsufi') continue;
-    const name = plan.invoiceName.split('|')[0].trim();
-    if (!name.startsWith('KS-')) continue; // skip non-Kimsufi models mis-tagged by OVH
-    const pricing = (plan.pricings || []).find((x) => x.interval === 1 && x.phase === 1);
-    info[plan.planCode] = {
-      price: pricing ? pricing.price / 1e8 : null,
-      name,
-      cpu: srv.cpu || {},
-    };
-  }
+  const info = buildCatalogInfo(cat);
 
   const byServer = {}; // server code -> aggregated row
   for (const x of avail) {
-    if (!info[x.planCode]) continue;
+    const name = resolveName(info, x.planCode);
+    if (!name) continue;
     const e =
       byServer[x.server] ||
       (byServer[x.server] = {
         code: x.server,
-        info: info[x.planCode],
+        name,
+        price: info.priceByName[name] ?? null,
+        cpu: info.cpuByName[name] || {},
         ram: x.memory,
         disk: x.storage,
         zones: new Set(),
@@ -157,7 +127,7 @@ async function listServers() {
 
   const byName = {}; // collapse regional duplicates, keep cheapest code, union zones
   for (const e of Object.values(byServer)) {
-    const existing = byName[e.info.name];
+    const existing = byName[e.name];
     if (existing) {
       for (const z of e.zones) existing.zones.add(z);
       // prefer the base code without a regional suffix (e.g. 24skgame01 over 24skgame01-apac)
@@ -166,15 +136,15 @@ async function listServers() {
       if (cleaner(e.code, existing.code) < 0) existing.code = e.code;
       continue;
     }
-    byName[e.info.name] = e;
+    byName[e.name] = e;
   }
 
   // remember model names so alerts can show them (e.g. "KS-5" next to 24sk50)
-  for (const [planCode, i] of Object.entries(info)) modelNames[planCode] = i.name;
-  for (const [code, e] of Object.entries(byServer)) modelNames[code] = e.info.name;
+  for (const [planCode, name] of Object.entries(info.nameByPlan)) modelNames[planCode] = name;
+  for (const [code, e] of Object.entries(byServer)) modelNames[code] = e.name;
 
   const rows = Object.values(byName).sort(
-    (a, b) => (a.info.price ?? Infinity) - (b.info.price ?? Infinity),
+    (a, b) => (a.price ?? Infinity) - (b.price ?? Infinity),
   );
 
   const pad = (s, n) => String(s).padEnd(n);
@@ -184,12 +154,11 @@ async function listServers() {
       pad('CORES', 9) + pad('RAM', 11) + pad('DISK', 27) + 'AVAILABLE NOW',
   );
   for (const e of rows) {
-    const i = e.info;
-    const price = i.price != null ? `€${i.price.toFixed(2)}` : '?';
-    const cores = `${i.cpu.cores ?? '?'}c/${i.cpu.threads ?? '?'}t`;
+    const price = e.price != null ? `€${e.price.toFixed(2)}` : '?';
+    const cores = `${e.cpu.cores ?? '?'}c/${e.cpu.threads ?? '?'}t`;
     const zones = e.zones.size ? [...e.zones].sort().join(', ') : '—';
     console.log(
-      pad(e.code, 13) + pad(i.name, 9) + pad(price, 9) + pad(i.cpu.model || '?', 18) +
+      pad(e.code, 13) + pad(e.name, 9) + pad(price, 9) + pad(e.cpu.model || '?', 18) +
         pad(cores, 9) + pad(humanRam(e.ram), 11) + pad(humanDisk(e.disk), 27) + zones,
     );
   }
@@ -207,9 +176,7 @@ async function call() {
 
   let body;
   try {
-    const res = await fetch(API_URL, { headers: { Accept: 'application/json' } });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    body = await res.json();
+    body = await fetchJson(AVAIL_URL);
   } catch (err) {
     console.error(`\nRequest failed: ${err.message}. Retrying in ${time}s...`);
     setTimeout(call, time * 1000);

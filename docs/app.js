@@ -1,9 +1,16 @@
 // Kimsufi Checker — static browser app.
 // Talks directly to the public OVH API (CORS is allowed: access-control-allow-origin: *).
+// Shared parsing/formatting logic lives in kimsufi-core.js (used by the CLI too).
 
-const AVAIL_URL = 'https://eu.api.ovh.com/v1/dedicated/server/datacenter/availabilities';
-const catalogUrl = (country) =>
-  `https://eu.api.ovh.com/v1/order/catalog/public/eco?ovhSubsidiary=${country}`;
+import {
+  AVAIL_URL,
+  catalogUrl,
+  fetchJson,
+  humanRam,
+  humanDisk,
+  buildCatalogInfo,
+  resolveName,
+} from './kimsufi-core.js?v=4';
 
 // Datacenter -> { label, continent }. Unknown codes fall back to "Other".
 const DC_INFO = {
@@ -31,10 +38,8 @@ const state = {
   country: 'FR',
   currency: 'EUR',
   models: [], // [{name, price, cpu, ram, disk, zonesNow:Set}]
-  nameByPlan: {}, // planCode -> model name (built from catalog)
-  planCodesSorted: [], // known plan codes, longest first (prefix fallback)
-  priceByName: {},
-  cpuByName: {},
+  info: { nameByPlan: {}, priceByName: {}, cpuByName: {}, planCodesSorted: [] },
+  priceByName: {}, // shortcut to info.priceByName (used by renderers)
   selectedModels: new Set(),
   selectedZones: new Set(),
   presentZones: [], // datacenter codes seen in the data
@@ -55,6 +60,7 @@ function saveState() {
       notify: $('notify').checked,
       models: [...state.selectedModels],
       zones: [...state.selectedZones],
+      running: state.running,
     }),
   );
 }
@@ -67,32 +73,21 @@ function loadState() {
     if (typeof s.notify === 'boolean') $('notify').checked = s.notify;
     if (Array.isArray(s.models)) state.selectedModels = new Set(s.models);
     if (Array.isArray(s.zones)) state.selectedZones = new Set(s.zones);
+    state.wasRunning = s.running === true; // resume watching after a refresh
   } catch { /* ignore */ }
 }
 
+// Selection changed: persist and, if we are watching, reflect it live.
+let refreshTimer;
+function onSelectionChanged() {
+  saveState();
+  if (!state.running) return;
+  updateStatus();
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(poll, 800); // debounced refresh of "Available now"
+}
+
 // ---- helpers ----------------------------------------------------------------
-function humanRam(m) {
-  const mo = /ram-(\d+)g/.exec(m || '');
-  return mo ? `${mo[1]} GB ECC` : (m || '?');
-}
-function humanDiskSeg(seg) {
-  const mo = /(\d+)x(\d+)(ssd|sa|nvme|hdd)?/.exec(seg);
-  if (!mo) return seg;
-  const [, n, sizeStr, typ] = mo;
-  const size = Number(sizeStr);
-  const unit = size < 1000 ? 'GB' : 'TB';
-  const disp = size < 1000 ? size : Math.round(size / 1000);
-  const typeMap = { ssd: 'SSD', sa: 'HDD', nvme: 'NVMe', hdd: 'HDD' };
-  return `${n}×${disp} ${unit} ${typeMap[typ] || ''}`.trim();
-}
-function humanDisk(s) {
-  s = s || '';
-  let m = /^(?:no|soft|hard)raid-(.+)$/.exec(s);
-  if (m) return humanDiskSeg(m[1]);
-  m = /^hybridsoftraid-(.+)$/.exec(s);
-  if (m) return m[1].split('-').map(humanDiskSeg).join(' + ');
-  return s || '?';
-}
 function fmtPrice(p) {
   if (p == null) return '?';
   const sym = { EUR: '€', GBP: '£', PLN: 'zł', USD: '$' }[state.currency];
@@ -100,13 +95,6 @@ function fmtPrice(p) {
 }
 function dcLabel(dc) {
   return DC_INFO[dc]?.label || dc;
-}
-function resolveName(planCode) {
-  if (state.nameByPlan[planCode]) return state.nameByPlan[planCode];
-  for (const k of state.planCodesSorted) {
-    if (planCode.startsWith(k)) return state.nameByPlan[k];
-  }
-  return null;
 }
 const orderUrl = (name) =>
   `https://eco.ovhcloud.com/${ECO_PATH[state.country] || 'en'}/kimsufi/${name.toLowerCase()}/`;
@@ -117,32 +105,11 @@ async function loadData() {
   state.country = country;
   $('models').textContent = 'Loading…';
 
-  const [cat, avail] = await Promise.all([
-    fetch(catalogUrl(country), { headers: { Accept: 'application/json' } }).then((r) => r.json()),
-    fetch(AVAIL_URL, { headers: { Accept: 'application/json' } }).then((r) => r.json()),
-  ]);
+  const [cat, avail] = await Promise.all([fetchJson(catalogUrl(country)), fetchJson(AVAIL_URL)]);
 
-  state.currency = cat.locale?.currencyCode || 'EUR';
-
-  // catalog: planCode -> {name, price, cpu} for kimsufi KS-* plans
-  const products = Object.fromEntries((cat.products || []).map((p) => [p.name, p]));
-  state.nameByPlan = {};
-  state.priceByName = {};
-  state.cpuByName = {};
-  for (const plan of cat.plans || []) {
-    const srv = products[plan.product]?.blobs?.technical?.server;
-    if (!srv || srv.range !== 'kimsufi') continue;
-    const name = plan.invoiceName.split('|')[0].trim();
-    if (!name.startsWith('KS-')) continue;
-    const pricing = (plan.pricings || []).find((x) => x.interval === 1 && x.phase === 1);
-    const price = pricing ? pricing.price / 1e8 : null;
-    state.nameByPlan[plan.planCode] = name;
-    state.cpuByName[name] = srv.cpu || {};
-    if (price != null && (state.priceByName[name] == null || price < state.priceByName[name])) {
-      state.priceByName[name] = price;
-    }
-  }
-  state.planCodesSorted = Object.keys(state.nameByPlan).sort((a, b) => b.length - a.length);
+  state.info = buildCatalogInfo(cat);
+  state.currency = state.info.currency;
+  state.priceByName = state.info.priceByName;
 
   buildModels(avail);
   renderModels();
@@ -153,14 +120,14 @@ function buildModels(avail) {
   const byName = {};
   const zones = new Set();
   for (const item of avail) {
-    const name = resolveName(item.planCode);
+    const name = resolveName(state.info, item.planCode);
     if (!name) continue;
     const m =
       byName[name] ||
       (byName[name] = {
         name,
-        price: state.priceByName[name] ?? null,
-        cpu: state.cpuByName[name] || {},
+        price: state.info.priceByName[name] ?? null,
+        cpu: state.info.cpuByName[name] || {},
         ram: item.memory,
         disk: item.storage,
         zonesNow: new Set(),
@@ -199,7 +166,7 @@ function renderModels() {
     row.querySelector('input').addEventListener('change', (e) => {
       if (e.target.checked) state.selectedModels.add(m.name);
       else state.selectedModels.delete(m.name);
-      saveState();
+      onSelectionChanged();
     });
     // clicking the inline order link must not toggle the row checkbox
     row.querySelector('.order-inline')?.addEventListener('click', (e) => e.stopPropagation());
@@ -233,7 +200,7 @@ function renderZones() {
     contBox.addEventListener('change', (e) => {
       list.forEach((dc) => (e.target.checked ? state.selectedZones.add(dc) : state.selectedZones.delete(dc)));
       renderZones();
-      saveState();
+      onSelectionChanged();
     });
     for (const dc of list) {
       const chip = document.createElement('label');
@@ -243,7 +210,7 @@ function renderZones() {
         if (e.target.checked) state.selectedZones.add(dc);
         else state.selectedZones.delete(dc);
         contBox.checked = list.every((z) => state.selectedZones.has(z));
-        saveState();
+        onSelectionChanged();
       });
       zoneList.appendChild(chip);
     }
@@ -309,7 +276,7 @@ async function poll() {
   state.requests++;
   let avail;
   try {
-    avail = await fetch(AVAIL_URL, { headers: { Accept: 'application/json' } }).then((r) => r.json());
+    avail = await fetchJson(AVAIL_URL);
   } catch (err) {
     updateStatus(`request failed (${err.message})`);
     return;
@@ -319,7 +286,7 @@ async function poll() {
   const hits = [];
   const newHits = [];
   for (const item of avail) {
-    const name = resolveName(item.planCode);
+    const name = resolveName(state.info, item.planCode);
     if (!name || !state.selectedModels.has(name)) continue;
     for (const dc of item.datacenters) {
       if (dc.availability === 'unavailable') continue;
@@ -386,6 +353,7 @@ function stop() {
   $('stop').disabled = true;
   $('country').disabled = false;
   $('status').innerHTML = '<span>Stopped.</span>';
+  saveState(); // persist stopped state so a refresh does not resume
 }
 
 // ---- wire up ----------------------------------------------------------------
@@ -393,7 +361,13 @@ loadState();
 $('start').addEventListener('click', start);
 $('stop').addEventListener('click', stop);
 $('country').addEventListener('change', () => { saveState(); loadData(); });
-$('interval').addEventListener('change', saveState);
+$('interval').addEventListener('change', () => {
+  saveState();
+  if (state.running) { // apply the new cadence live
+    clearInterval(state.timer);
+    state.timer = setInterval(poll, Number($('interval').value) * 1000);
+  }
+});
 $('sound').addEventListener('change', saveState);
 $('notify').addEventListener('change', async () => {
   if ($('notify').checked && Notification.permission === 'default') {
@@ -403,19 +377,24 @@ $('notify').addEventListener('change', async () => {
 });
 $('models-all').addEventListener('click', () => {
   state.models.forEach((m) => state.selectedModels.add(m.name));
-  renderModels(); saveState();
+  renderModels(); onSelectionChanged();
 });
 $('models-none').addEventListener('click', () => {
-  state.selectedModels.clear(); renderModels(); saveState();
+  state.selectedModels.clear(); renderModels(); onSelectionChanged();
 });
 $('zones-all').addEventListener('click', () => {
   state.presentZones.forEach((z) => state.selectedZones.add(z));
-  renderZones(); saveState();
+  renderZones(); onSelectionChanged();
 });
 $('zones-none').addEventListener('click', () => {
-  state.selectedZones.clear(); renderZones(); saveState();
+  state.selectedZones.clear(); renderZones(); onSelectionChanged();
 });
 
-loadData().catch((err) => {
-  $('models').innerHTML = `<p class="empty">Failed to load data: ${err.message}</p>`;
-});
+loadData()
+  .then(() => {
+    // resume watching automatically after a page refresh
+    if (state.wasRunning && state.selectedModels.size && state.selectedZones.size) start();
+  })
+  .catch((err) => {
+    $('models').innerHTML = `<p class="empty">Failed to load data: ${err.message}</p>`;
+  });
