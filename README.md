@@ -2,7 +2,23 @@
 
 Kimsufi (by OVHcloud) offers cheap dedicated servers starting at **€9.99/month**.
 They sell out fast, so this tool polls the OVH availability API and alerts you
-(terminal bell + optional Telegram) the moment a server you want is back in stock.
+the moment a server you want is back in stock. Use it two ways:
+
+- **Web app** — no install, runs in your browser: **https://tlmak0.github.io/kimsufi-checker/**
+- **CLI** — Node.js script with optional Telegram alerts (see [Usage](#usage))
+
+## Web app
+
+A static page (HTML/CSS/JS only, hosted on GitHub Pages) that checks availability
+live from your browser — no backend, no account. Pick one or more server models
+and the datacenters to watch (grouped by continent), press **Start watching**, and
+it alerts you with a sound and an optional desktop notification the moment a server
+is in stock, with a direct order link. Your selection is saved locally.
+
+Open it here: **https://tlmak0.github.io/kimsufi-checker/**
+
+The source lives in [`docs/`](docs/). To run it locally: `cd docs && python3 -m http.server`
+then open <http://localhost:8000>.
 
 ## Kimsufi servers & prices
 
