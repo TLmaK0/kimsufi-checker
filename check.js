@@ -83,6 +83,8 @@ async function sendTelegram(text) {
 }
 
 // --- server list -------------------------------------------------------------
+const modelNames = {}; // server code / planCode -> commercial model name (e.g. "KS-5")
+
 function humanRam(m) {
   const mo = /ram-(\d+)g/.exec(m || '');
   return mo ? `${mo[1]} GB ECC` : (m || '?');
@@ -167,6 +169,10 @@ async function listServers() {
     byName[e.info.name] = e;
   }
 
+  // remember model names so alerts can show them (e.g. "KS-5" next to 24sk50)
+  for (const [planCode, i] of Object.entries(info)) modelNames[planCode] = i.name;
+  for (const [code, e] of Object.entries(byServer)) modelNames[code] = e.info.name;
+
   const rows = Object.values(byName).sort(
     (a, b) => (a.info.price ?? Infinity) - (b.info.price ?? Infinity),
   );
@@ -237,16 +243,17 @@ async function call() {
   seen = currentKeys; // drop entries no longer available so they re-alert next time
 
   if (newHits.length > 0) {
+    const modelOf = (h) => modelNames[h.server] || modelNames[h.planCode] || h.server;
     process.stdout.write('\x07'); // terminal bell
     console.log(`\n[${new Date().toISOString()}] AVAILABLE:`);
     for (const h of newHits) {
-      console.log(`  ${h.server} [${h.planCode}] -> ${h.datacenter} (${h.availability})`);
+      console.log(`  ${modelOf(h)} (${h.server}) [${h.planCode}] -> ${h.datacenter} (${h.availability})`);
     }
 
     const lines = newHits
       .map(
         (h) =>
-          `• <b>${h.server}</b> (${h.planCode}) → ${h.datacenter} (${h.availability})`,
+          `• <b>${modelOf(h)}</b> (${h.server}) → ${h.datacenter} (${h.availability})`,
       )
       .join('\n');
     const orderUrl = `https://www.kimsufi.com/en/order/kimsufi.xml?reference=${newHits[0].planCode}`;
